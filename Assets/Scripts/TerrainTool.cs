@@ -1,6 +1,8 @@
 using System.Linq;
 
+
 using UnityEngine;
+using System;
 
 public sealed class TerrainTool : MonoBehaviour
 {
@@ -8,15 +10,18 @@ public sealed class TerrainTool : MonoBehaviour
     {
         Raise,
         Lower,
+        Erase,
         Flatten,
         Sample,
         SampleAverage,
+        Bresenham,
+        EraseCircular
     }
 
     public int brushWidth;
     public int brushHeight;
 
-    [Range(0.001f, 0.1f)]
+    [Range(0.001f, 1.0f)]
     public float strength;
 
     public TerrainModificationAction modificationAction;
@@ -47,6 +52,12 @@ public sealed class TerrainTool : MonoBehaviour
 
                         break;
 
+                    case TerrainModificationAction.Erase:
+
+                        EraseTerrain(hit.point, brushWidth, brushHeight);
+
+                        break;
+
                     case TerrainModificationAction.Flatten:
 
                         FlattenTerrain(hit.point, _sampledHeight, brushWidth, brushHeight);
@@ -64,6 +75,12 @@ public sealed class TerrainTool : MonoBehaviour
                         _sampledHeight = SampleAverageHeight(hit.point, brushWidth, brushHeight);
 
                         break;
+                    case TerrainModificationAction.Bresenham:
+
+                        Bresenhams(hit.point, brushWidth, brushHeight);
+
+                        break;
+                    
                 }
             }
         }
@@ -150,6 +167,29 @@ public sealed class TerrainTool : MonoBehaviour
         terrainData.SetHeights(brushPosition.x, brushPosition.y, heights);
     }
 
+    public void EraseTerrain(Vector3 worldPosition, int brushWidth, int brushHeight)
+    {
+        var brushPosition = GetBrushPosition(worldPosition, brushWidth, brushHeight);
+
+        var brushSize = GetSafeBrushSize(brushPosition.x, brushPosition.y, brushWidth, brushHeight);
+
+        var terrainData = GetTerrainData();
+
+        var heights = terrainData.GetHeights(brushPosition.x, brushPosition.y, brushSize.x, brushSize.y);
+
+        for (var y = 0; y < brushSize.y; y++)
+        {
+            for (var x = 0; x < brushSize.x; x++)
+            {
+                heights[x, y] = 0;
+            }
+        }
+
+
+
+        terrainData.SetHeights(brushPosition.x, brushPosition.y, heights);
+    }
+
     public void FlattenTerrain(Vector3 worldPosition, float height, int brushWidth, int brushHeight)
     {
         var brushPosition = GetBrushPosition(worldPosition, brushWidth, brushHeight);
@@ -200,4 +240,50 @@ public sealed class TerrainTool : MonoBehaviour
 
         return heights.Average();
     }
+
+    private void Bresenhams(Vector3 worldPosition, int brushWidth, int brushHeight) {
+
+        var brushPosition = GetBrushPosition(worldPosition, brushWidth, brushHeight);
+
+        var brushSize = GetSafeBrushSize(brushPosition.x, brushPosition.y, brushWidth, brushHeight);
+
+        var terrainData = GetTerrainData();
+
+        var heights = terrainData.GetHeights(brushPosition.x, brushPosition.y, brushSize.x, brushSize.y);
+
+        int r = brushSize.x / 2;
+        float rr = r * r;
+        int x, y;
+        Vector2 calc;
+        float distanceStrength;
+        if ((Input.GetAxis("Mouse X") != 0) || (Input.GetAxis("Mouse Y") != 0))
+        {
+            for (y = 0; y < r; y++)
+            {
+                for (x = 0; x < r; x++)
+                {
+                    if ((x * x) + (y * y) <= rr) //Check whether points are in circle
+                    {
+                        calc = new Vector2(x, y);
+
+                        distanceStrength = easeInOutCubic(r - calc.magnitude);
+
+                        heights[r + y, r + x] -= strength * distanceStrength * Time.deltaTime;
+                        heights[r + y, r - x] -= strength * distanceStrength * Time.deltaTime;
+                        heights[r - y, r - x] -= strength * distanceStrength * Time.deltaTime;
+                        heights[r - y, r + x] -= strength * distanceStrength * Time.deltaTime;
+                    }
+                }
+            }
+            terrainData.SetHeights(brushPosition.x, brushPosition.y, heights);
+        }
+    }
+
+    private float easeInOutCubic(float t)
+    {
+            float sqt = t * t;
+            return sqt / (2.0f * (sqt - t) + 1.0f);
+    }
+
+     
 }
