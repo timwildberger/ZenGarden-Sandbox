@@ -14,8 +14,7 @@ public sealed class TerrainTool : MonoBehaviour
         Flatten,
         Sample,
         SampleAverage,
-        Bresenham,
-        EraseCircular
+        Bresenham
     }
 
     public int brushWidth;
@@ -29,6 +28,7 @@ public sealed class TerrainTool : MonoBehaviour
     private Terrain _targetTerrain;
 
     private float _sampledHeight;
+
 
     private void Update()
     {
@@ -92,6 +92,12 @@ public sealed class TerrainTool : MonoBehaviour
 
     private Vector3 GetTerrainSize() => GetTerrainData().size;
 
+    /// <summary>
+    /// Translates worldPosition to position in heightmap.
+    /// Returns Vector3 heightmap position.
+    /// </summary>
+    /// <param name="worldPosition"></param>
+    /// <returns></returns>
     public Vector3 WorldToTerrainPosition(Vector3 worldPosition)
     {
         var terrainPosition = worldPosition - _targetTerrain.GetPosition();
@@ -104,6 +110,16 @@ public sealed class TerrainTool : MonoBehaviour
 
         return new Vector3(terrainPosition.x * heightmapResolution, 0, terrainPosition.z * heightmapResolution);
     }
+
+    /// <summary>
+    /// Returns bottom left coordinate of brush area.
+    /// Coordinate system is the heightmap.
+    /// 
+    /// </summary>
+    /// <param name="worldPosition"></param>
+    /// <param name="brushWidth"></param>
+    /// <param name="brushHeight"></param>
+    /// <returns></returns>
 
     public Vector2Int GetBrushPosition(Vector3 worldPosition, int brushWidth, int brushHeight)
     {
@@ -210,11 +226,15 @@ public sealed class TerrainTool : MonoBehaviour
 
         terrainData.SetHeights(brushPosition.x, brushPosition.y, heights);
     }
-
+    /// <summary>
+    /// Calculates the height value on a positon in the heightmap.
+    /// </summary>
+    /// <param name="worldPosition"></param>
+    /// <returns></returns>
     public float SampleHeight(Vector3 worldPosition)
     {
         var terrainPosition = WorldToTerrainPosition(worldPosition);
-
+        //Debug.Log(GetTerrainData().GetInterpolatedHeight((int)terrainPosition.x, (int)terrainPosition.z));
         return GetTerrainData().GetInterpolatedHeight((int)terrainPosition.x, (int)terrainPosition.z);
     }
 
@@ -251,32 +271,49 @@ public sealed class TerrainTool : MonoBehaviour
 
         var heights = terrainData.GetHeights(brushPosition.x, brushPosition.y, brushSize.x, brushSize.y);
 
+
         int r = brushSize.x / 2;
+        Vector2 calc = new (0,0);
+
         float rr = r * r;
         int x, y;
-        Vector2 calc;
         float distanceStrength;
+        /*
         if ((Input.GetAxis("Mouse X") != 0) || (Input.GetAxis("Mouse Y") != 0))
-        {
+        {*/
             for (y = 0; y < r; y++)
             {
                 for (x = 0; x < r; x++)
                 {
                     if ((x * x) + (y * y) <= rr) //Check whether points are in circle
                     {
-                        calc = new Vector2(x, y);
+                        // Calculate Point
+                        calc.Set(x, y);
 
-                        distanceStrength = easeInOutCubic(r - calc.magnitude);
+                        distanceStrength = easeInOutCubic((calc.magnitude) / brushSize.x);
 
-                        heights[r + y, r + x] -= strength * distanceStrength * Time.deltaTime;
-                        heights[r + y, r - x] -= strength * distanceStrength * Time.deltaTime;
-                        heights[r - y, r - x] -= strength * distanceStrength * Time.deltaTime;
-                        heights[r - y, r + x] -= strength * distanceStrength * Time.deltaTime;
+                        // 0.5 is average height
+                        Debug.Log("sample height: " + heights[r + y, r + x]);
+                        if(!(heights[r + y, r + x] <= distanceStrength))
+                        {
+                            heights[r + y, r + x] = distanceStrength;
+                        }
+                        if (!(heights[r + y, r - x] <= distanceStrength))
+                        {
+                            heights[r + y, r - x] = distanceStrength;
+                        }
+                        if (!(heights[r - y, r - x] <= distanceStrength))
+                        {
+                            heights[r - y, r - x] = distanceStrength;
+                        }
+                        if (!(heights[r - y, r + x] <= distanceStrength))
+                        {
+                            heights[r - y, r + x] = distanceStrength;
+                        }
                     }
                 }
             }
             terrainData.SetHeights(brushPosition.x, brushPosition.y, heights);
-        }
     }
 
     private float easeInOutCubic(float t)
