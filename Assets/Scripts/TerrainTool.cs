@@ -6,29 +6,44 @@ using System;
 
 public sealed class TerrainTool : MonoBehaviour
 {
-    public enum TerrainModificationAction
-    {
-        Raise,
-        Lower,
-        Erase,
-        Flatten,
-        Sample,
-        SampleAverage,
-        Bresenham
-    }
+    
 
-    public int brushWidth;
-    public int brushHeight;
+    private Camera cam;
 
-    [Range(0.001f, 1.0f)]
-    public float strength;
-
-    public TerrainModificationAction modificationAction;
+    public int brushSize;
+    private int brushWidth;
+    private int brushHeight;
 
     private Terrain _targetTerrain;
+    [Header("Height of the terrain: 0 - 100")]
+    private float terrainHeight;
+    private float _terrainHeight;
 
+    public TerrainModificationAction modificationAction;
+    public enum TerrainModificationAction
+    {
+        Flatten,
+        FlattenAll,
+        Sample,
+        SampleAverage,
+        Bresenham,
+    }
     private float _sampledHeight;
 
+    private void Start()
+    {
+        cam = Camera.main;
+        cam.rect = new Rect(0, 0, 4000, 4000);
+        _targetTerrain = Terrain.activeTerrain;
+
+        brushWidth = brushSize;
+        brushHeight = brushSize;
+
+        terrainHeight = brushSize / 10;
+        _terrainHeight = terrainHeight / 100;
+
+        FlattenAllTerrain(_terrainHeight);
+    }
 
     private void Update()
     {
@@ -40,27 +55,15 @@ public sealed class TerrainTool : MonoBehaviour
 
                 switch (modificationAction)
                 {
-                    case TerrainModificationAction.Raise:
-
-                        RaiseTerrain(hit.point, strength, brushWidth, brushHeight);
-
-                        break;
-
-                    case TerrainModificationAction.Lower:
-
-                        LowerTerrain(hit.point, strength, brushWidth, brushHeight);
-
-                        break;
-
-                    case TerrainModificationAction.Erase:
-
-                        EraseTerrain(hit.point, brushWidth, brushHeight);
-
-                        break;
-
                     case TerrainModificationAction.Flatten:
 
                         FlattenTerrain(hit.point, _sampledHeight, brushWidth, brushHeight);
+
+                        break;
+
+                    case TerrainModificationAction.FlattenAll:
+
+                        FlattenAllTerrain(_terrainHeight);
 
                         break;
 
@@ -80,7 +83,6 @@ public sealed class TerrainTool : MonoBehaviour
                         Bresenhams(hit.point, brushWidth, brushHeight);
 
                         break;
-                    
                 }
             }
         }
@@ -141,71 +143,6 @@ public sealed class TerrainTool : MonoBehaviour
         return new Vector2Int(brushWidth, brushHeight);
     }
 
-    public void RaiseTerrain(Vector3 worldPosition, float strength, int brushWidth, int brushHeight)
-    {
-        var brushPosition = GetBrushPosition(worldPosition, brushWidth, brushHeight);
-
-        var brushSize = GetSafeBrushSize(brushPosition.x, brushPosition.y, brushWidth, brushHeight);
-
-        var terrainData = GetTerrainData();
-
-        var heights = terrainData.GetHeights(brushPosition.x, brushPosition.y, brushSize.x, brushSize.y);
-
-        for (var y = 0; y < brushSize.y; y++)
-        {
-            for (var x = 0; x < brushSize.x; x++)
-            {
-                heights[y, x] += strength * Time.deltaTime;
-            }
-        }
-
-        terrainData.SetHeights(brushPosition.x, brushPosition.y, heights);
-    }
-
-    public void LowerTerrain(Vector3 worldPosition, float strength, int brushWidth, int brushHeight)
-    {
-        var brushPosition = GetBrushPosition(worldPosition, brushWidth, brushHeight);
-
-        var brushSize = GetSafeBrushSize(brushPosition.x, brushPosition.y, brushWidth, brushHeight);
-
-        var terrainData = GetTerrainData();
-
-        var heights = terrainData.GetHeights(brushPosition.x, brushPosition.y, brushSize.x, brushSize.y);
-
-        for (var y = 0; y < brushSize.y; y++)
-        {
-            for (var x = 0; x < brushSize.x; x++)
-            {
-                heights[y, x] -= strength * Time.deltaTime;
-            }
-        }
-
-        terrainData.SetHeights(brushPosition.x, brushPosition.y, heights);
-    }
-
-    public void EraseTerrain(Vector3 worldPosition, int brushWidth, int brushHeight)
-    {
-        var brushPosition = GetBrushPosition(worldPosition, brushWidth, brushHeight);
-
-        var brushSize = GetSafeBrushSize(brushPosition.x, brushPosition.y, brushWidth, brushHeight);
-
-        var terrainData = GetTerrainData();
-
-        var heights = terrainData.GetHeights(brushPosition.x, brushPosition.y, brushSize.x, brushSize.y);
-
-        for (var y = 0; y < brushSize.y; y++)
-        {
-            for (var x = 0; x < brushSize.x; x++)
-            {
-                heights[x, y] = 0;
-            }
-        }
-
-
-
-        terrainData.SetHeights(brushPosition.x, brushPosition.y, heights);
-    }
-
     public void FlattenTerrain(Vector3 worldPosition, float height, int brushWidth, int brushHeight)
     {
         var brushPosition = GetBrushPosition(worldPosition, brushWidth, brushHeight);
@@ -225,6 +162,26 @@ public sealed class TerrainTool : MonoBehaviour
         }
 
         terrainData.SetHeights(brushPosition.x, brushPosition.y, heights);
+    }
+
+    public void FlattenAllTerrain(float height)
+    {
+
+        var terrainData = GetTerrainData();
+        var size = terrainData.heightmapResolution;
+        // y is height
+
+        var heights = terrainData.GetHeights(0, 0, size, size);
+
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                heights[y, x] = height;
+            }
+        }
+        terrainData.SetHeights(0, 0, heights);
+
     }
     /// <summary>
     /// Calculates the height value on a positon in the heightmap.
@@ -273,14 +230,17 @@ public sealed class TerrainTool : MonoBehaviour
 
 
         int r = brushSize.x / 2;
-        Vector2 calc = new (0,0);
+        Vector2 calc = new(0, 0);
 
         float rr = r * r;
         int x, y;
         float distanceStrength;
-        /*
+
+        Vector2 test_max = new Vector3(1, 1);
+        float distanceStrength_base = EaseInOutCubic(test_max.magnitude / brushSize.x);
+
         if ((Input.GetAxis("Mouse X") != 0) || (Input.GetAxis("Mouse Y") != 0))
-        {*/
+        {
             for (y = 0; y < r; y++)
             {
                 for (x = 0; x < r; x++)
@@ -290,11 +250,19 @@ public sealed class TerrainTool : MonoBehaviour
                         // Calculate Point
                         calc.Set(x, y);
 
-                        distanceStrength = easeInOutCubic((calc.magnitude) / brushSize.x);
+                        distanceStrength = EaseInOutCubic(calc.magnitude / brushSize.x);
+                        if(distanceStrength == 0)
+                        {
+                            distanceStrength = distanceStrength_base;
+                        }
+
+
+
+                        //distanceStrength = easeInOutBack((calc.magnitude) / brushSize.x);
 
                         // 0.5 is average height
-                        Debug.Log("sample height: " + heights[r + y, r + x]);
-                        if(!(heights[r + y, r + x] <= distanceStrength))
+                        // Repeat calculation für each quadrant of the standard circle
+                        if (!(heights[r + y, r + x] <= distanceStrength))
                         {
                             heights[r + y, r + x] = distanceStrength;
                         }
@@ -313,14 +281,28 @@ public sealed class TerrainTool : MonoBehaviour
                     }
                 }
             }
-            terrainData.SetHeights(brushPosition.x, brushPosition.y, heights);
+        terrainData.SetHeights(brushPosition.x, brushPosition.y, heights);
     }
+}
 
-    private float easeInOutCubic(float t)
+    private float EaseInOutCubic(float t)
     {
             float sqt = t * t;
             return sqt / (2.0f * (sqt - t) + 1.0f);
     }
 
-     
+
+    public static float EaseInOutBack(float t)
+    {
+        if (t < 0.5) return EaseInBack(t * 2) / 2;
+        return 1 - EaseInBack((1 - t) * 2) / 2;
+    }
+
+    public static float EaseInBack(float t)
+    {
+        float s = 1.70158f;
+        return t * t * ((s + 1) * t - s);
+    }
+
+
 }
