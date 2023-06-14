@@ -3,6 +3,7 @@ using System.Linq;
 
 using UnityEngine;
 using System;
+using Valve.VR;
 
 public sealed class TerrainTool : MonoBehaviour
 {
@@ -47,10 +48,19 @@ public sealed class TerrainTool : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetMouseButton(0))
+        SteamVR_Action_Pose poseActionR;
+        poseActionR = SteamVR_Input.GetAction<SteamVR_Action_Pose>("Pose");
+        Vector3 vive_pos = poseActionR[SteamVR_Input_Sources.RightHand].localPosition;
+        Vector3 mouse_pos = Input.mousePosition;
+        //print("valve: " + pos);
+        //print("mouse: " + mouse_pos);
+        if (vive_pos.y < 1)
         {
-            if (Physics.Raycast(Camera.main.ScreenPointToRay(Input.mousePosition), out var hit))
+            Vector3 dir = vive_pos - Camera.main.transform.position;
+            if (Physics.Raycast(Camera.main.transform.position, dir, out var hit))
             {
+                Debug.Log("hit " + hit.collider.name + " at: " + hit.point);
+                Debug.DrawRay(Camera.main.transform.position, dir);
                 if (hit.transform.TryGetComponent(out Terrain terrain)) _targetTerrain = terrain;
 
                 switch (modificationAction)
@@ -79,7 +89,6 @@ public sealed class TerrainTool : MonoBehaviour
 
                         break;
                     case TerrainModificationAction.Bresenham:
-
                         Bresenhams(hit.point, brushWidth, brushHeight);
 
                         break;
