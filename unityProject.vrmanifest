@@ -1,0 +1,16 @@
+{
+  "source": "Unity",
+  "applications": [
+    {
+      "app_key": "application.generated.unity.sandbox.exe",
+      "launch_type": "url",
+      "url": "steam://launch/",
+      "action_manifest_path": "C:\\Users\\Anwender\\Documents\\HSKA\\Semester 6\\MMK2\\ZenGarden-Sandbox\\Assets\\StreamingAssets\\SteamVR\\actions.json",
+      "strings": {
+        "en_us": {
+          "name": "Sandbox [Testing]"
+        }
+      }
+    }
+  ]
+}
